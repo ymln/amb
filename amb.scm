@@ -234,7 +234,7 @@
 
          (w1 (make-w->max quality Qmin Qmax))
          (w2 (make-w->min finances Fmin Fmax))
-         (w3 (make-w->min time* (Tmin Tmax)))
+         (w3 (make-w->min time* Tmin Tmax))
 
          (x (worst (lambda (x) (max (* rho1 (w1 x))
                                     (* rho2 (w2 x))
