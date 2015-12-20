@@ -2,9 +2,9 @@
 ;;;;; Install necessary dependencies (as root):
 ;;;;;     chicken-install amb:2.1.6 loop:1.4 matchable:3.3 linear-algebra:1.4
 ;;;;; And then run it like this:
-;;;;;     csi amb.scm rho1 rho2 rho3
+;;;;;     csi -ss amb.scm rho1 rho2 rho3
 ;;;;; For example (as in article):
-;;;;;     csi amb.scm 0.3333 0.3333 0.3333
+;;;;;     csi -ss amb.scm 0.3333 0.3333 0.3333
 ;;;;; The program will then output the X matrix and the values of quality,
 ;;;;; finances and time.
 (use srfi-1 amb amb-extras loop matchable linear-algebra)
@@ -227,12 +227,12 @@ where F and T are numbers")
 (define (print-matrix m)
   (for-each print (vector->list m)))
 
-(define (main)
-  (if (not (= (length (argv)) 5))
+(define (main argv)
+  (if (not (= (length argv) 3))
       (die-with-usage))
-  (let ((rho1 (string->number (third  (argv))))
-        (rho2 (string->number (fourth (argv))))
-        (rho3 (string->number (fifth (argv)))))
+  (let ((rho1 (string->number (first  argv)))
+        (rho2 (string->number (second argv)))
+        (rho3 (string->number (third argv))))
     (if (and rho1 rho2 rho3)
         (let ((x (my-solve rho1 rho2 rho3)))
           (print-matrix (alist-ref 'x solution))
@@ -244,8 +244,5 @@ where F and T are numbers")
           (print "Time: " (alist-ref 't solution))
           (newline))
         (die-with-usage))))
-
-(main)
-(exit)
 ;}}}
 ; vim:foldmethod=marker
