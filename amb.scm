@@ -220,8 +220,8 @@
 ;}}}
 ;;; cli;{{{
 (define (die-with-usage)
-  (print "Usage: " (first (argv)) " F T
-where F and T are numbers")
+  (print "Usage: " (program-name) " rho1 rho2 rho3
+where rho1, rho2 and rho3 are numbers")
   (exit 1))
 
 (define (print-matrix m)
