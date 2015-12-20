@@ -87,43 +87,6 @@
                                                (make-list (- n i 1) 0))))))
     (choose lists)))
 ;}}}
-;;;; asserts;{{{
-(define (assert-list lst #!optional msg)
-  (assert (list? lst) (or msg "Not a list")))
-
-(define (assert-matrix m #!optional msg)
-  (assert (matrix? m) (or msg "Not a matrix")))
-
-(define (assert-same-dimensions m1 m2)
-  (assert-matrix m1)
-  (assert-matrix m2)
-  (assert (and (= (matrix-columns m1) (matrix-columns m2))
-               (= (matrix-rows m1) (matrix-rows m2)))))
-
-(define (max* lst)
-  (apply max lst))
-
-(define (amb-make-x rows cols)
-  (let ((lists (list-tabulate rows (lambda (_) (amb-1-list cols)))))
-   (list->matrix lists)))
-
-(define (assert-sum-equals-1 matrix)
-  (let ((rows (matrix-rows matrix))
-        (cols (matrix-columns matrix)))
-    (loop for i from 0 to (- rows 1) do
-          (assert (= 1
-                     (loop for j from 0 to (- cols 1) sum (matrix-ref matrix i j)))))))
-(define (ra-asserts w t f q F T graph x)
-  (assert-list w)
-  (assert-same-dimensions t f)
-  (assert-same-dimensions t q)
-  (assert (= (length w) (matrix-rows t)))
-  (assert (> F 0))
-  (assert (> T 0))
-  (assert (list? graph))
-  (assert-sum-equals-1 x)
-  (assert-same-dimensions t x))
-;}}}
 ;;;; optimization;{{{
 (define (optimize f lst op)
   (car (sort-by f lst op)))
@@ -210,6 +173,13 @@
   (lambda (x)
     (/ (- max (f x))
        (- max min))))
+
+(define (max* lst)
+  (apply max lst))
+
+(define (amb-make-x rows cols)
+  (let ((lists (list-tabulate rows (lambda (_) (amb-1-list cols)))))
+   (list->matrix lists)))
 
 ;;; generate all possible X matrices with given number of rows and columns
 (define (make-all-xs rows cols)
