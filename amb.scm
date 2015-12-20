@@ -225,7 +225,7 @@ where rho1, rho2 and rho3 are numbers")
   (exit 1))
 
 (define (print-matrix m)
-  (for-each print (vector->list m)))
+  (for-each print (map vector->list m)))
 
 (define (main argv)
   (if (not (= (length argv) 3))
