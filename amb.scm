@@ -1,8 +1,10 @@
-;;;;; Download and install Chicken Scheme: https://call-cc.org
+;;;;; To run this program, download and install Chicken Scheme: https://call-cc.org
 ;;;;; Install necessary dependencies (as root):
 ;;;;;     chicken-install amb:2.1.6 loop:1.4 matchable:3.3 linear-algebra:1.4
 ;;;;; And then run it like this:
 ;;;;;     csi amb.scm rho1 rho2 rho3
+;;;;; For example (as in article):
+;;;;;     csi amb.scm 0.3333 0.3333 0.3333
 ;;;;; The program will then output the X matrix and the values of quality,
 ;;;;; finances and time.
 (use srfi-1 amb amb-extras loop matchable linear-algebra)
