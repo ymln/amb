@@ -1,6 +1,6 @@
-(use srfi-1 matchable loop)
+(use srfi-1 matchable loop linear-algebra amb amb-extras)
 
-;; misc
+;; misc;{{{
 (define (partial f . args)
   (lambda rest
     (apply f (append args rest))))
@@ -20,8 +20,8 @@
 
 (define (sort-by key lst #!optional (less <))
   (sort lst (lambda (a b) (less (key a) (key b)))))
-
-;; graph
+;}}}
+;; graph;{{{
 (define *graph-eq?* eqv?)
 
 (define (graph-vertices graph)
@@ -41,8 +41,8 @@
 
 (define (graph-starts graph)
   (filter (partial graph-is-start? graph) (graph-vertices graph)))
-
-;; paths
+;}}}
+;; paths;{{{
 (define (paths-from graph start)
   (if (graph-last? graph start)
       (list (list start))
@@ -53,10 +53,8 @@
 (define (paths graph)
   (let ((starts (graph-starts graph)))
     (mapcat (partial paths-from graph) starts)))
-
-;; matrix
-(use linear-algebra)
-
+;}}}
+;; matrix;{{{
 (define (mat-sum mat)
   (let ((m (matrix-rows mat))
         (n (matrix-columns mat)))
@@ -66,10 +64,8 @@
 
 (define (m*.+ m1 m2)
   (mat-sum (m*. m1 m2)))
-
-;; amb
-(use amb amb-extras)
-
+;}}}
+;; amb;{{{
 (define (amb-bool)
   (amb 0 1))
 
@@ -83,8 +79,8 @@
                                                '(1)
                                                (make-list (- n i 1) 0))))))
     (choose lists)))
-
-;; asserts
+;}}}
+;; asserts;{{{
 (define (assert-list lst #!optional msg)
   (assert (list? lst) (or msg "Not a list")))
 
@@ -97,8 +93,20 @@
   (assert (and (= (matrix-columns m1) (matrix-columns m2))
                (= (matrix-rows m1) (matrix-rows m2)))))
 
-;; ra
-(define (ra #!key w t f q F T graph)
+(define (max* lst)
+  (apply max lst))
+
+(define (amb-make-x rows cols)
+  (let ((lists (list-tabulate rows (lambda (_) (amb-1-list cols)))))
+   (list->matrix lists)))
+
+(define (assert-sum-equals-1 matrix)
+  (let ((rows (matrix-rows matrix))
+        (cols (matrix-columns matrix)))
+    (loop for i from 0 to (- rows 1) do
+          (assert (= 1
+                     (loop for j from 0 to (- cols 1) sum (matrix-ref matrix i j)))))))
+(define (ra-asserts w t f q F T graph x)
   (assert-list w)
   (assert-same-dimensions t f)
   (assert-same-dimensions t q)
@@ -106,58 +114,83 @@
   (assert (> F 0))
   (assert (> T 0))
   (assert (list? graph))
+  (assert-sum-equals-1 x)
+  (assert-same-dimensions t x))
+;}}}
+;; optimization;{{{
+(define (optimize f lst op)
+  (car (sort-by f lst op)))
+
+(define (best f lst)
+  (optimize f lst >))
+
+(define (worst f lst)
+  (optimize f lst <))
+;}}}
+;; objective functions;{{{
+(define (time* x t P)
+  ; changed time to time- to evade conflict with builtin
+  (let ((contractors-count (matrix-columns t)))
+    (max* (loop for p in P collect
+                (loop for i in p sum
+                      (loop for j from 0 to (- contractors-count 1) sum
+                            (* (matrix-ref x (- i 1) j)
+                               (matrix-ref t (- i 1) j))))))))
+
+(define (quality q w x)
+  (loop for i from 0 to (- (matrix-rows x) 1) sum
+        (loop for j from 0 to (- (matrix-columns x) 1) sum
+              (* (matrix-ref x i j)
+                 (list-ref w i)
+                 (matrix-ref q i j)))))
+
+(define (finances x f)
+  (m*.+ x f))
+;}}}
+;; ra;{{{
+(define (ra #!key w t f q F T graph)
   (let* ((bp-count (matrix-rows t))
          (contractors-count (matrix-columns t))
-         (P (paths graph))
-         (lists (list-tabulate bp-count (lambda (_) (amb-1-list contractors-count))))
-         (x (list->matrix lists)))
-    ;(assert-same-dimensions t x)
-    ;; sum equals 1
-    ;(loop for i from 0 to (- bp-count 1) do (required (= 1 (loop for j from 0 to (- contractors-count 1) sum (matrix-ref x i j)))))
-    ;; time
-    (loop for p in P do
-          (required (<= (loop for i in p sum
-                              (loop for j from 0 to (- contractors-count 1) sum
-                                    (* (matrix-ref x (- i 1) j)
-                                       (matrix-ref t (- i 1) j))))
-                        T)))
-    ;; finances
-    (required (<= (m*.+ x f) F))
+         (x (amb-make-x bp-count contractors-count)))
+    (ra-asserts w t f q F T graph x)
+    (required (<= (time* x t (paths graph)) T))
+    (required (<= (finances x f) F))
     x))
-
+;}}}
+;; input;{{{
 (define oo 1e100) ;; infinity
 
 (define t
-  (list->matrix `((5  3   ,oo ,oo ,oo)
-                  (4  5   ,oo ,oo ,oo)
-                  (4  3   ,oo ,oo ,oo)
-                  (10 8   3   5   ,oo)
-                  (15 6   ,oo 5   ,oo)
-                  (20 ,oo 3   5   ,oo)
-                  (20 ,oo 4   7   ,oo)
-                  (30 15  ,oo 15  20))))
+  (list->matrix `((5  3   ,oo)
+                  (4  5   ,oo)
+                  (4  3   ,oo)
+                  (15 10  8  )
+                  (15 6   ,oo)
+                  (20 ,oo 3  )
+                  (25 ,oo 4  )
+                  (30 15  ,oo))))
 
 (define f
-  (list->matrix `((5000  10000 ,oo   ,oo   ,oo)
-                  (5000  5000  ,oo   ,oo   ,oo)
-                  (5000  5000  ,oo   ,oo   ,oo)
-                  (20000 15000 5000  10000 ,oo)
-                  (25000 15000 ,oo   15000 ,oo)
-                  (30000 ,oo   10000 15000 ,oo)
-                  (40000 ,oo   30000 25000 ,oo)
-                  (50000 15000 ,oo   15000 25000))))
+  (list->matrix `((5  10  ,oo)
+                  (5  5   ,oo)
+                  (5  5   ,oo)
+                  (10 5   5)
+                  (25 15  ,oo)
+                  (30 ,oo 10)
+                  (40 ,oo 30)
+                  (50 15  ,oo))))
 
 (define q
-  (list->matrix '((1   0.3 0   0   0)
-                  (1   0.4 0   0   0)
-                  (1   0.4 0   0   0)
-                  (1   0.6 0.2 0.5 0)
-                  (0.9 0.9 0   0.7 0)
-                  (0.5 0   0.8 0.9 0)
-                  (0.6 0   0.7 0.8 0)
-                  (0.8 0.7 0   0.7 0.9))))
+  (list->matrix '((10 3 0)
+                  (10 4 0)
+                  (10 4 0)
+                  (10 6 2)
+                  (9  9 0)
+                  (5  0 8)
+                  (6  0 7)
+                  (8  7 0))))
 
-(define w '(0.3 0.2 0.1 0.2 0.1 0.05 0.03 0.02))
+(define w '(30 20 10 20 10 5 3 2))
 
 (define graph
   '((6 2)
@@ -168,22 +201,16 @@
     (8 3)
     (3 4)
     (4 1)))
-
-(define (quality q w x)
-  (loop for i from 0 to (- (matrix-rows x) 1) sum
-        (loop for j from 0 to (- (matrix-columns x) 1) sum
-              (* (matrix-ref x i j)
-                 (list-ref w i)
-                 (matrix-ref q i j)))))
-
+;}}}
+;; input-related functions;{{{
 (define (my-ra F T)
   (ra w: w t: t f: f q: q F: F T: T graph: graph))
 
 (define (my-ra-best F T)
   (let ((ans (amb-collect (my-ra F T))))
-    (car (sort-by (partial quality q w) ans >))))
-
-;; cli
+    (best (partial quality q w) ans)))
+;}}}
+;; cli;{{{
 (define (die-with-usage)
   (print "Usage: " (first (argv)) " F T
 where F and T are numbers")
@@ -203,3 +230,5 @@ where F and T are numbers")
 
 (main)
 (exit)
+;}}}
+; vim:foldmethod=marker
