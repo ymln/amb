@@ -213,10 +213,10 @@
                                     (* rho3 (w3 x))))
                    all-xs))
          )
-    `(x ,x
-      q ,(quality x)
-      t ,(time x)
-      f ,(finances x))))
+    `((x ,x)
+      (q ,(quality x))
+      (t ,(time* x))
+      (f ,(finances x)))))
 ;}}}
 ;;; cli;{{{
 (define (die-with-usage)
