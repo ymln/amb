@@ -1,6 +1,13 @@
-(use srfi-1 matchable loop linear-algebra amb amb-extras)
+;;;;; Download and install Chicken Scheme: https://call-cc.org
+;;;;; Install necessary dependencies (as root):
+;;;;;     chicken-install amb:2.1.6 loop:1.4 matchable:3.3 linear-algebra:1.4
+;;;;; And then run it like this:
+;;;;;     csi amb.scm rho1 rho2 rho3
+;;;;; The program will then output the X matrix and the values of quality,
+;;;;; finances and time.
+(use srfi-1 amb amb-extras loop matchable linear-algebra)
 
-;; misc;{{{
+;;;; misc;{{{
 (define (partial f . args)
   (lambda rest
     (apply f (append args rest))))
@@ -21,7 +28,7 @@
 (define (sort-by key lst #!optional (less <))
   (sort lst (lambda (a b) (less (key a) (key b)))))
 ;}}}
-;; graph;{{{
+;;;; graph;{{{
 (define *graph-eq?* eqv?)
 
 (define (graph-vertices graph)
@@ -42,7 +49,7 @@
 (define (graph-starts graph)
   (filter (partial graph-is-start? graph) (graph-vertices graph)))
 ;}}}
-;; paths;{{{
+;;;; paths;{{{
 (define (paths-from graph start)
   (if (graph-last? graph start)
       (list (list start))
@@ -54,7 +61,7 @@
   (let ((starts (graph-starts graph)))
     (mapcat (partial paths-from graph) starts)))
 ;}}}
-;; matrix;{{{
+;;;; matrix;{{{
 (define (mat-sum mat)
   (let ((m (matrix-rows mat))
         (n (matrix-columns mat)))
@@ -65,7 +72,7 @@
 (define (m*.+ m1 m2)
   (mat-sum (m*. m1 m2)))
 ;}}}
-;; amb;{{{
+;;;; amb;{{{
 (define (amb-bool)
   (amb 0 1))
 
@@ -80,7 +87,7 @@
                                                (make-list (- n i 1) 0))))))
     (choose lists)))
 ;}}}
-;; asserts;{{{
+;;;; asserts;{{{
 (define (assert-list lst #!optional msg)
   (assert (list? lst) (or msg "Not a list")))
 
@@ -117,7 +124,7 @@
   (assert-sum-equals-1 x)
   (assert-same-dimensions t x))
 ;}}}
-;; optimization;{{{
+;;;; optimization;{{{
 (define (optimize f lst op)
   (car (sort-by f lst op)))
 
@@ -127,9 +134,9 @@
 (define (worst f lst)
   (optimize f lst <))
 ;}}}
-;; objective functions;{{{
-(define (time* x t P)
-  ; changed time to time- to evade conflict with builtin
+;;;; objective functions;{{{
+(define (time* t P x)
+  ;; changed time to time* to evade conflict with builtin
   (let ((contractors-count (matrix-columns t)))
     (max* (loop for p in P collect
                 (loop for i in p sum
@@ -144,21 +151,11 @@
                  (list-ref w i)
                  (matrix-ref q i j)))))
 
-(define (finances x f)
+(define (finances f x)
   (m*.+ x f))
 ;}}}
-;; ra;{{{
-(define (ra #!key w t f q F T graph)
-  (let* ((bp-count (matrix-rows t))
-         (contractors-count (matrix-columns t))
-         (x (amb-make-x bp-count contractors-count)))
-    (ra-asserts w t f q F T graph x)
-    (required (<= (time* x t (paths graph)) T))
-    (required (<= (finances x f) F))
-    x))
-;}}}
-;; input;{{{
-(define oo 1e100) ;; infinity
+;;;; input;{{{
+(define oo 1e100) ; infinity
 
 (define t
   (list->matrix `((5  3   ,oo)
@@ -202,30 +199,78 @@
     (3 4)
     (4 1)))
 ;}}}
-;; input-related functions;{{{
-(define (my-ra F T)
-  (ra w: w t: t f: f q: q F: F T: T graph: graph))
+;;;; input-related functions;{{{
+;;; Solve my problem (as defined in input section)
+(define (make-w->min f min max)
+  (lambda (x)
+    (/ (- (f x) min)
+       (- max min))))
 
-(define (my-ra-best F T)
-  (let ((ans (amb-collect (my-ra F T))))
-    (best (partial quality q w) ans)))
+(define (make-w->max f min max)
+  (lambda (x)
+    (/ (- max (f x))
+       (- max min))))
+
+;;; generate all possible X matrices with given number of rows and columns
+(define (make-all-xs rows cols)
+  (amb-collect (amb-make-x rows cols)))
+
+(define (my-solve rho1 rho2 rho3)
+  (let* ((rows (matrix-rows t))
+         (cols (matrix-columns t))
+         (all-xs (make-all-xs rows cols))
+
+         (quality (partial quality q w))
+         (Qmin (quality (worst quality all-xs)))
+         (Qmax (quality (best quality all-xs)))
+
+         (time* (partial time* t (paths graph)))
+         (Tmin (time* (worst time* all-xs)))
+         (Tmax (time* (best time* all-xs)))
+
+         (finances (partial finances f))
+         (Fmin (finances (worst finances all-xs)))
+         (Fmax (finances (best finances all-xs)))
+
+         (w1 (make-w->max quality Qmin Qmax))
+         (w2 (make-w->min finances Fmin Fmax))
+         (w3 (make-w->min time* (Tmin Tmax)))
+
+         (x (worst (lambda (x) (max (* rho1 (w1 x))
+                                    (* rho2 (w2 x))
+                                    (* rho3 (w3 x))))
+                   all-xs))
+         )
+    `(x ,x
+      q ,(quality x)
+      t ,(time x)
+      f ,(finances x))))
 ;}}}
-;; cli;{{{
+;;; cli;{{{
 (define (die-with-usage)
   (print "Usage: " (first (argv)) " F T
 where F and T are numbers")
   (exit 1))
 
+(define (print-matrix m)
+  (for-each print (vector->list m)))
+
 (define (main)
-  (if (not (= (length (argv)) 4))
+  (if (not (= (length (argv)) 5))
       (die-with-usage))
-  (let ((F (string->number (third  (argv))))
-        (T (string->number (fourth (argv)))))
-    (if (and F T)
-        (let ((best (my-ra-best F T)))
-          (for-each print (vector->list best))
+  (let ((rho1 (string->number (third  (argv))))
+        (rho2 (string->number (fourth (argv))))
+        (rho3 (string->number (fifth (argv)))))
+    (if (and rho1 rho2 rho3)
+        (let ((x (my-solve rho1 rho2 rho3)))
+          (print-matrix (alist-ref 'x solution))
           (newline)
-          (print "Quality: " (quality q w best)))
+          (print "Quality: " (alist-ref 'q solution))
+          (newline)
+          (print "Finances: " (alist-ref 'f solution))
+          (newline)
+          (print "Time: " (alist-ref 't solution))
+          (newline))
         (die-with-usage))))
 
 (main)
