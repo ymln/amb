@@ -1,13 +1,13 @@
 ;;;;; To run this program, download and install Chicken Scheme: https://call-cc.org
 ;;;;; Install necessary dependencies (as root):
-;;;;;     chicken-install amb:2.1.6 loop:1.4 matchable:3.3 linear-algebra:1.4
+;;;;;     chicken-install loop:1.4 matchable:3.3 linear-algebra:1.4
 ;;;;; And then run it like this:
 ;;;;;     csi -ss amb.scm rho1 rho2 rho3
 ;;;;; For example (as in article):
 ;;;;;     csi -ss amb.scm 0.3333 0.3333 0.3333
 ;;;;; The program will then output the X matrix and the values of quality,
 ;;;;; finances and time.
-(use srfi-1 amb amb-extras loop matchable linear-algebra)
+(use srfi-1 loop matchable linear-algebra)
 
 ;;;; misc;{{{
 (define (partial f . args)
@@ -74,21 +74,6 @@
 (define (m*.+ m1 m2)
   (mat-sum (m*. m1 m2)))
 ;}}}
-;;;; amb;{{{
-(define (amb-bool)
-  (amb 0 1))
-
-(define (amb-bool-matrix m n)
-  (list->matrix
-   (list-tabulate m (lambda (i)
-                      (list-tabulate n (lambda (j) (amb-bool)))))))
-
-(define (amb-1-list n)
-  (let ((lists (list-tabulate n (lambda (i) (append (make-list i 0)
-                                               '(1)
-                                               (make-list (- n i 1) 0))))))
-    (choose lists)))
-;}}}
 ;;;; optimization;{{{
 (define (optimize f lst op)
   (car (sort-by f lst op)))
@@ -104,7 +89,7 @@
   ;; changed time to time* to evade conflict with builtin
   (let ((contractors-count (matrix-columns t)))
     (max* (loop for p in P collect
-                (loop for i in p sum
+                (loop for i in (filter number? p) sum
                       (loop for j from 0 to (- contractors-count 1) sum
                             (* (matrix-ref x (- i 1) j)
                                (matrix-ref t (- i 1) j))))))))
@@ -155,14 +140,20 @@
 (define w '(30 20 10 20 10 5 3 2))
 
 (define graph
-  '((6 2)
-    (5 2)
-    (2 7)
-    (2 8)
-    (7 3)
-    (8 3)
-    (3 4)
-    (4 1)))
+  '((6 b)
+    (5 b)
+    (2 b)
+    (b 7)
+    (b 8)
+    (b 3)
+    (7 c)
+    (8 c)
+    (3 c)
+    (c 4)
+    (4 d)
+    (d e)
+    (a 1)
+    (1 e)))
 ;}}}
 ;;;; input-related functions;{{{
 ;;; Solve my problem (as defined in input section)
@@ -179,13 +170,27 @@
 (define (max* lst)
   (apply max lst))
 
-(define (amb-make-x rows cols)
-  (let ((lists (list-tabulate rows (lambda (_) (amb-1-list cols)))))
-   (list->matrix lists)))
+(define (make-vectors len)
+  (loop for i from 1 to len collect
+        (let ((vec (make-vector len 0)))
+         (vector-set! vec (- i 1) 1)
+         (vector->list vec))))
+
+(define (cartesian-product list1 list2)
+  (define result '())
+  (loop for x in list1 do
+       (loop for y in list2 do
+            (set! result (cons (cons x y) result))))
+  result)
 
 ;;; generate all possible X matrices with given number of rows and columns
 (define (make-all-xs rows cols)
-  (amb-collect (amb-make-x rows cols)))
+  (let ((row-alternatives (make-vectors cols)))
+   (define (make-rows rows-left)
+     (if (> rows-left 1)
+       (cartesian-product row-alternatives (make-rows (- rows-left 1)))
+       (map list row-alternatives)))
+   (map list->matrix (make-rows rows))))
 
 (define (my-solve rho1 rho2 rho3)
   (let* ((rows (matrix-rows t))
@@ -235,14 +240,11 @@ where rho1, rho2 and rho3 are numbers")
         (rho3 (string->number (third argv))))
     (if (and rho1 rho2 rho3)
         (let ((solution (my-solve rho1 rho2 rho3)))
+          (print "X:")
           (print-matrix (alist-ref 'x solution))
-          (newline)
           (print "Quality: " (car (alist-ref 'q solution)))
-          (newline)
           (print "Finances: " (car (alist-ref 'f solution)))
-          (newline)
-          (print "Time: " (car (alist-ref 't solution)))
-          (newline))
+          (print "Time: " (car (alist-ref 't solution))))
         (die-with-usage))))
 ;}}}
 ; vim:foldmethod=marker
